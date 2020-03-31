@@ -2,6 +2,7 @@ import re
 import string
 from typing import Set, Dict, List
 from itertools import count
+import numpy as np
 
 from .utils import ComparationMock
 
@@ -29,7 +30,7 @@ class TodoEntry:  # pylint: disable=too-many-instance-attributes
     __slots__ = [
         '_full_text', '_projects', '_contexts', '_tags',
         '_priority', '_completed_date', '_created_date',
-        '_completed'
+        '_completed', '_threshold', '_due'
     ]
 
     def __init__(  # pylint: disable=too-many-arguments
@@ -42,6 +43,8 @@ class TodoEntry:  # pylint: disable=too-many-instance-attributes
         self._created_date = None
         self._tags = {}
         self._priority = None
+        self._threshold = None
+        self._due = None
         self._load_text()
 
     def _load_text(self) :
@@ -50,8 +53,10 @@ class TodoEntry:  # pylint: disable=too-many-instance-attributes
         self._priority = next(filter(TODO_TXT_PRIORITY_REGEX.match, tokenized_entries), None)
         if self._priority:
             self._priority = self._priority[1]
-        self._projects = {x[1:] for x in tokenized_entries if x.startswith('+')}
-        self._contexts = {x[1:] for x in tokenized_entries if x.startswith('@')}
+        self._projects = [x[1:] for x in tokenized_entries if x.startswith('+')]
+        self._contexts = [x[1:] for x in tokenized_entries if x.startswith('@')]
+        self._threshold = [x[2:] for x in tokenized_entries if x.startswith('t')]
+        self._due = [x[4:] for x in tokenized_entries if x.startswith('due')]
         for tokenized_entry in tokenized_entries:
             if tokenized_entry.count(':') == 1 and not tokenized_entry.startswith(':') and not tokenized_entry.endswith(':'):
                 key, value = tokenized_entry.split(':')
@@ -68,6 +73,7 @@ class TodoEntry:  # pylint: disable=too-many-instance-attributes
         if self._completed_date and not self._created_date:
             self._created_date = self._completed_date
             self._completed_date = None
+
 
     @property
     def completed(self) :
@@ -189,6 +195,22 @@ class TodoEntry:  # pylint: disable=too-many-instance-attributes
     def remove_tag(self, key , value ) :
         self._tags.pop(key, None)
         self._full_text = self._full_text.replace(" "+str(key)+":"+str(value), "")
+
+    def to_dict(self):
+        if self._threshold:
+            self._threshold = self._threshold[0]
+        else:
+            self._threshold = np.nan
+        if self._due:
+            self._due = self._due[0]
+        else:
+            self._due = np.nan        
+        return {
+            'created': self._created_date,
+            'full_text': self._full_text,
+            'threshold': self._threshold,
+            'due': self._due
+        }
 
     def _search_merge_tag_name(self, tag_name ) :
         for index in count():
